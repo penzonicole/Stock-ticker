@@ -30,14 +30,14 @@ A full-stack Django web application that fetches real-time currency exchange rat
 ### 1. Main Dashboard & Weather Widget
 Overview of live weather data in Brasília, multi-currency conversion status (USD, EUR, BTC), active cache indicator badge, and the interactive Chart.js line graph displaying exchange rate variation over time.
 
-(![alt text](image.png))
+![alt text](image.png)
 
 ---
 
 ### 2. Query History Table
 Historical conversion log table rendered asynchronously via `fetch('/api/historico/')` without reloading the page, displaying trading pairs, monetary values, and precise timestamps.
 
-(![alt text](image-1.png))
+![alt text](image-1.png)
 
 ---
 
