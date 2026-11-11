@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel de Cotações & Gráfico</title>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
+        table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
+        th, td { border: 1px solid #ccc; padding: 6px 10px; text-align: left; }
+        .ok { background: #d4edda; padding: 10px; border-radius: 4px; color: #155724; }
+        .erro { background: #f8d7da; padding: 10px; border-radius: 4px; color: #721c24; }
+        .chart-container { margin-top: 2rem; position: relative; }
+    </style>
+</head>
+<body>
+    <h1>Painel de Cotações</h1>
+
+    <!-- Bloco de Clima -->
+    {% if clima %}
+    <div style="background-color: #e2e3e5; padding: 12px; border-radius: 6px; margin-bottom: 1rem; border: 1px solid #d6d8db;">
+        🌤️ <strong>Clima Atual (Brasília):</strong> 
+        <span>Temperatura: <strong>{{ clima.temperatura }}°C</strong></span> | 
+        <span>Vento: <strong>{{ clima.vento }} km/h</strong></span>
+    </div>
+    {% endif %}
+
+    {% if sucesso %}
+    <div class="ok">
+        <strong>Cotações registradas com sucesso!</strong>
+        {% if usou_cache %}
+            <span style="color: #856404; background-color: #fff3cd; padding: 2px 6px; border-radius: 3px; font-size: 0.85rem; margin-left: 8px;">
+                ⚡ Dados recuperados do Cache (válido por 2 min)
+            </span>
+        {% else %}
+            <span style="color: #155724; background-color: #c3e6cb; padding: 2px 6px; border-radius: 3px; font-size: 0.85rem; margin-left: 8px;">
+                🌐 Dados atualizados via API Externa
+            </span>
+        {% endif %}
+        <ul>
+            {% for r in registros %}
+                <li>{{ r.moeda_origem }}/{{ r.moeda_destino }} = R$ {{ r.valor }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% elif erro %}
+    <div class="erro">{{ erro }}</div>
+    {% endif %}
+
+    <p><a href="{% url 'consultar' %}">Consultar novamente</a></p>
+
+    <h2>Gráfico de Variação (USD/BRL)</h2>
+    <div class="chart-container">
+        <canvas id="graficoCotacao"></canvas>
+    </div>
+
+    <h2>Histórico de consultas</h2>
+    <p id="status-historico">Carregando histórico...</p>
+
+    <table id="tabela-historico" hidden>
+        <thead>
+            <tr><th>Par</th><th>Valor</th><th>Data/Hora</th></tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <script>
+        const status = document.getElementById('status-historico');
+        const tabela = document.getElementById('tabela-historico');
+        const corpo = tabela.querySelector('tbody');
+
+        fetch('/api/historico/')
+            .then(function (resposta) {
+                if (!resposta.ok) throw new Error('HTTP ' + resposta.status);
+                return resposta.json();
+            })
+            .then(function (registros) {
+                if (registros.length === 0) {
+                    status.textContent = 'Nenhuma consulta registrada ainda.';
+                    return;
+                }
+                
+                // Limpa tabela
+                corpo.innerHTML = '';
+                
+                // Filtra dados para o gráfico (somente USD/BRL, invertido para ordem cronológica)
+                const registrosUSD = registros.filter(r => r.moeda_origem === 'USD').reverse();
+                const labels = registrosUSD.map(r => new Date(r.data_hora_consulta).toLocaleTimeString('pt-BR'));
+                const valores = registrosUSD.map(r => parseFloat(r.valor));
+
+                // Renderiza a Tabela
+                registros.forEach(function (r) {
+                    const linha = document.createElement('tr');
+                    const dados = [
+                        r.moeda_origem + ' / ' + r.moeda_destino,
+                        'R$ ' + parseFloat(r.valor).toLocaleString('pt-BR', {minimumFractionDigits: 2}),
+                        new Date(r.data_hora_consulta).toLocaleString('pt-BR')
+                    ];
+                    dados.forEach(function (texto) {
+                        const celula = document.createElement('td');
+                        celula.textContent = texto;
+                        linha.appendChild(celula);
+                    });
+                    corpo.appendChild(linha);
+                });
+                
+                status.hidden = true;
+                tabela.hidden = false;
+
+                // Renderiza o Gráfico com Chart.js
+                const ctx = document.getElementById('graficoCotacao').getContext('2d');
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Cotação USD/BRL (R$)',
+                            data: valores,
+                            borderColor: '#007bff',
+                            backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                            fill: true,
+                            tension: 0.2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: { beginAtZero: false }
+                        }
+                    }
+                });
+            })
+            .catch(function (erro) {
+                status.textContent = 'Não foi possível carregar o histórico. Verifique sua conexão.';
+                console.error('Falha ao buscar histórico:', erro);
+            });
+    </script>
+</body>
+</html>
